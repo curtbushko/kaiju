@@ -22,6 +22,9 @@ go.work
 
 bin/
 logs/
+
+# Native libraries (populated by nix develop)
+src/libs/
 docs/api
 external/bin
 interpreter/kaiju-*
