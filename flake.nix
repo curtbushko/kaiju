@@ -69,7 +69,7 @@
           nativeBuildInputs = [ final.cmake ];
 
           buildInputs = if final.stdenv.isLinux then [ final.alsa-lib ]
-                        else if final.stdenv.isDarwin then [ final.darwin.apple_sdk.frameworks.CoreAudio ]
+                        else if final.stdenv.isDarwin then [ final.apple-sdk_15 ]
                         else [];
 
           sourceRoot = "source/contrib";
@@ -126,6 +126,9 @@ EOF
             # Game engine dependencies
             bullet-static
             soloud
+          ]
+          ++ pkgs.lib.optionals (!pkgs.stdenv.hostPlatform.isDarwin) [
+            # Vulkan packages (Linux only - macOS uses MoltenVK via Vulkan SDK)
             vulkan-loader
             vulkan-headers
             vulkan-validation-layers
@@ -151,7 +154,14 @@ EOF
           ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
             # macOS-specific packages
             # Xcode Command Line Tools (xcode-select --install) required
-
+            # Apple SDK provides frameworks (Cocoa, CoreAudio, Metal, etc.) via SDKROOT
+            pkgs.apple-sdk_15
+            pkgs.darwin.libiconv
+            # Vulkan SDK via MoltenVK (Vulkan over Metal translation layer)
+            pkgs.moltenvk
+            pkgs.vulkan-headers
+            pkgs.vulkan-loader
+            pkgs.vulkan-tools
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isWindows [
             # Windows-specific packages
@@ -229,6 +239,27 @@ EOF
             fi
 
             echo "Vulkan ICD files: $VK_ICD_FILENAMES"
+          '' + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+            # macOS: Set up Vulkan SDK environment via MoltenVK from nixpkgs
+            export VULKAN_SDK="${pkgs.moltenvk}"
+            echo "Using Vulkan SDK (MoltenVK) from: $VULKAN_SDK"
+
+            # Set up CGO flags for building with MoltenVK
+            export CGO_ENABLED=1
+            export CGO_CFLAGS="-I${pkgs.vulkan-headers}/include -I${pkgs.moltenvk}/include"
+            export CGO_LDFLAGS="-L${pkgs.moltenvk}/lib -lMoltenVK -Wl,-rpath,${pkgs.moltenvk}/lib"
+
+            # Add Vulkan tools to PATH
+            export PATH="${pkgs.vulkan-tools}/bin:$PATH"
+
+            # Set Vulkan environment variables for MoltenVK
+            export VK_ICD_FILENAMES="${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json"
+            export VK_LAYER_PATH="${pkgs.vulkan-loader}/share/vulkan/explicit_layer.d"
+            export DYLD_LIBRARY_PATH="${pkgs.moltenvk}/lib:${pkgs.vulkan-loader}/lib''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+
+            echo "CGO_CFLAGS=$CGO_CFLAGS"
+            echo "CGO_LDFLAGS=$CGO_LDFLAGS"
+            echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
           '';
         };
       });

@@ -22,15 +22,22 @@ endif
 .PHONY: default
 default: help
 
+.PHONY: check-libs
+check-libs:
+	@if [ ! -d "$(CURDIR)/src/libs" ] || [ -z "$$(ls -A $(CURDIR)/src/libs 2>/dev/null)" ]; then \
+		echo "Error: src/libs/ is missing or empty. Run 'nix develop' first to populate native libraries."; \
+		exit 1; \
+	fi
+
 .PHONY: build
-build: ## Build the binary (release mode with editor)
+build: check-libs ## Build the binary (release mode with editor)
 	@mkdir -p $(CURDIR)/bin/$(OS)-$(ARCH)
 	@echo "$(DATELOG) Building binary in release mode"
 	cd $(CURDIR)/src && GOOS=$(OS) GOARCH=$(ARCH) go build -ldflags="-s -w" -tags="debug,editor" -o $(CURDIR)/bin/$(OS)-$(ARCH)/$(BINARY) ./
 	@chmod +x $(CURDIR)/bin/$(OS)-$(ARCH)/$(BINARY)
 
 .PHONY: build-debug
-build-debug: ## Build the binary in debug mode with editor
+build-debug: check-libs ## Build the binary in debug mode with editor
 	@mkdir -p $(CURDIR)/bin/$(OS)-$(ARCH)
 	@echo "$(DATELOG) Building binary in debug mode"
 	cd $(CURDIR)/src && GOOS=$(OS) GOARCH=$(ARCH) go build -tags="debug,editor" -o $(CURDIR)/bin/$(OS)-$(ARCH)/$(BINARY) ./
